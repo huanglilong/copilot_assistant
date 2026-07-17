@@ -22,6 +22,7 @@ def get_active_sessions():
         workspace = _read_workspace(session_dir)
         events_summary = _read_events_summary(session_dir)
         todos = _read_todos(session_dir)
+        waiting = _check_waiting(session_dir)
 
         sessions.append({
             "session_id": session_id,
@@ -29,6 +30,7 @@ def get_active_sessions():
             "workspace": workspace,
             "events_summary": events_summary,
             "todos": todos,
+            "waiting": waiting,
             "session_dir": str(session_dir),
         })
 
@@ -96,6 +98,10 @@ def _read_events_summary(session_dir):
         "tool_calls": 0,
         "errors": 0,
         "total_events": 0,
+        "last_message": None,
+        "last_message_type": None,
+        "last_tool": None,
+        "status": "idle",
     }
 
     try:
@@ -108,23 +114,46 @@ def _read_events_summary(session_dir):
                     event = json.loads(line)
                     etype = event.get("type", "")
                     ts = event.get("timestamp", "")
+                    data = event.get("data", {})
                     summary["total_events"] += 1
 
                     if etype == "session.start":
-                        data = event.get("data", {})
                         summary["start_time"] = ts
                         summary["copilot_version"] = data.get("copilotVersion")
                     elif etype == "session.model_change":
-                        data = event.get("data", {})
                         summary["model"] = data.get("model", summary.get("model"))
                     elif etype == "user.message":
                         summary["user_messages"] += 1
+                        content = data.get("content", "")
+                        if content:
+                            summary["last_message"] = content[:500]
+                            summary["last_message_type"] = "user"
+                            summary["status"] = "working"
                     elif etype == "assistant.message":
                         summary["assistant_messages"] += 1
+                        content = data.get("content", "")
+                        if content:
+                            summary["last_message"] = content[:500]
+                            summary["last_message_type"] = "assistant"
+                    elif etype == "assistant.turn_start":
+                        summary["status"] = "working"
+                    elif etype == "assistant.turn_end":
+                        summary["status"] = "waiting"
+                    elif etype == "tool.execution_start":
+                        tool_name = data.get("toolName", data.get("name", ""))
+                        if tool_name:
+                            summary["last_tool"] = tool_name
+                            summary["status"] = "working"
                     elif etype == "tool.execution_complete":
                         summary["tool_calls"] += 1
+                        result = data.get("result", {})
+                        result_content = result.get("content", "") if isinstance(result, dict) else ""
+                        if result_content and not summary.get("last_message"):
+                            summary["last_message"] = result_content[:500]
+                            summary["last_message_type"] = "tool"
                     elif etype == "error":
                         summary["errors"] += 1
+                        summary["status"] = "error"
 
                     if ts:
                         summary["last_activity"] = ts
@@ -158,6 +187,32 @@ def _read_todos(session_dir):
     except Exception:
         pass
     return todos
+
+
+def _check_waiting(session_dir):
+    """Check if session is waiting for user input."""
+    events_path = session_dir / "events.jsonl"
+    if not events_path.exists():
+        return False
+
+    last_type = None
+    try:
+        with open(events_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    etype = obj.get("type", "")
+                    if etype in ("user.message", "assistant.message", "assistant.turn_end", "system.message"):
+                        last_type = etype
+                except Exception:
+                    continue
+    except Exception:
+        return False
+
+    return last_type in ("assistant.message", "assistant.turn_end", "system.message")
 
 
 def get_system_info():

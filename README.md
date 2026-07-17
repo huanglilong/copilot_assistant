@@ -12,6 +12,8 @@ Real-time status monitor for GitHub Copilot CLI sessions, accessible from any de
 - 📋 **Session Tracking** - Active sessions, event counts, model info, todos
 - 🔍 **Multi-Session** - Monitors all active Copilot CLI sessions simultaneously
 - 🌐 **Dual-Stack** - IPv4 + IPv6 for broad device compatibility
+- 💬 **Last Message** - Shows the latest user/assistant/tool message per session
+- ⚡ **Status Detection** - Working / Waiting for input / Error / Idle status per session
 
 ## Quick Start
 

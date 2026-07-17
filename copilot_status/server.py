@@ -1,6 +1,6 @@
 """HTTP status server with HTML dashboard for Copilot CLI status."""
 
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, Response
 from .collector import get_active_sessions, get_all_sessions, get_system_info
 
 app = Flask(__name__)
@@ -53,6 +53,16 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .session-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 0.85em; }
   .session-row:hover { background: rgba(88,166,255,0.05); }
   .session-row .name { max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge-waiting { background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid var(--yellow); }
+  .badge-working { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid var(--accent); }
+  .badge-error { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid var(--red); }
+  .badge-idle { background: rgba(139,148,158,0.15); color: var(--dim); border: 1px solid var(--border); }
+  .status-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .last-message { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 0.85em; color: var(--text); max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+  .last-message.user-msg { border-left: 3px solid var(--accent); }
+  .last-message.assistant-msg { border-left: 3px solid var(--green); }
+  .last-message.tool-msg { border-left: 3px solid var(--yellow); }
+  .msg-label { font-size: 0.75em; color: var(--dim); margin-bottom: 4px; text-transform: uppercase; }
 </style>
 </head>
 <body>
@@ -85,6 +95,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div class="refresh-info">Auto-refresh every 5 seconds &bull; <a href="/api/status" style="color:var(--accent);">JSON API</a></div>
 
 <script>
+function escapeHtml(text) {
+  var d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
 function renderBadge(active) {
   return active
     ? '<span class="badge badge-active">● Active</span>'
@@ -93,36 +109,52 @@ function renderBadge(active) {
 
 function renderTodos(todos) {
   if (!todos || todos.length === 0) return '';
-  let html = '<div class="todos-list"><h4>Todos</h4>';
-  todos.forEach(t => {
-    html += '<div class="todo-item"><span class="todo-dot ' + t.status + '"></span>' +
-            '<span>' + escapeHtml(t.title) + ' <span style="color:var(--dim)">(' + t.status + ')</span></span></div>';
+  var html = '<div class="todos-list"><h4>Todos</h4>';
+  todos.forEach(function(t) {
+    html += '<div class="todo-item"><span class="todo-dot ' + escapeHtml(t.status) + '"></span>' +
+            '<span>' + escapeHtml(t.title) + ' <span style="color:var(--dim)">(' + escapeHtml(t.status) + ')</span></span></div>';
   });
   html += '</div>';
   return html;
 }
 
-function escapeHtml(text) {
-  const d = document.createElement('div');
-  d.textContent = text;
-  return d.innerHTML;
+function renderStatusBadge(status) {
+  var map = {
+    'working': '<span class="badge badge-working">⚡ Working</span>',
+    'waiting': '<span class="badge badge-waiting">⏳ Waiting for input</span>',
+    'error': '<span class="badge badge-error">❌ Error</span>',
+    'idle': '<span class="badge badge-idle">○ Idle</span>'
+  };
+  return map[status] || map['idle'];
+}
+
+function renderLastMessage(ev) {
+  if (!ev.last_message) return '';
+  var typeClass = ev.last_message_type === 'user' ? 'user-msg' :
+                  ev.last_message_type === 'assistant' ? 'assistant-msg' : 'tool-msg';
+  var typeLabel = ev.last_message_type === 'user' ? '👤 User' :
+                  ev.last_message_type === 'assistant' ? '🤖 Assistant' : '🔧 Tool';
+  return '<div class="msg-label">' + typeLabel + (ev.last_tool ? ' → ' + escapeHtml(ev.last_tool) : '') + '</div>' +
+         '<div class="last-message ' + typeClass + '">' + escapeHtml(ev.last_message) + '</div>';
 }
 
 function renderActiveSessions(sessions) {
-  const el = document.getElementById('active-sessions');
+  var el = document.getElementById('active-sessions');
   if (!sessions.length) {
     el.innerHTML = '<p style="color:var(--dim)">No active sessions</p>';
     return;
   }
-  el.innerHTML = sessions.map(s => {
-    const ws = s.workspace || {};
-    const ev = s.events_summary || {};
-    const lastAct = ev.last_activity ? new Date(ev.last_activity).toLocaleString() : 'N/A';
-    return '<div class="session-card">' +
+  el.innerHTML = sessions.map(function(s) {
+    var ws = s.workspace || {};
+    var ev = s.events_summary || {};
+    var lastAct = ev.last_activity ? new Date(ev.last_activity).toLocaleString() : 'N/A';
+    var sid = s.session_id;
+    var status = ev.status || 'idle';
+    return '<div class="session-card" data-sid="' + escapeHtml(sid) + '">' +
       '<div class="session-header">' +
         '<div><div class="session-name">' + escapeHtml(ws.name || 'Unnamed Session') + '</div>' +
-        '<div class="session-id">' + s.session_id + '</div></div>' +
-        renderBadge(true) +
+        '<div class="session-id">' + escapeHtml(sid) + '</div></div>' +
+        renderStatusBadge(status) +
       '</div>' +
       '<div class="meta-grid">' +
         '<div class="meta-item"><div class="meta-label">Working Dir</div><div class="meta-value">' + escapeHtml(ws.cwd || '-') + '</div></div>' +
@@ -139,16 +171,19 @@ function renderActiveSessions(sessions) {
         '<span class="event-stat">❌ Errors: <span class="num error">' + ev.errors + '</span></span>' +
         '<span class="event-stat">📊 Total Events: <span class="num">' + ev.total_events + '</span></span>' +
       '</div>' +
+      '<div class="status-section">' +
+        renderLastMessage(ev) +
+      '</div>' +
       renderTodos(s.todos) +
     '</div>';
   }).join('');
 }
 
 function renderAllSessions(sessions) {
-  const el = document.getElementById('all-sessions');
-  el.innerHTML = sessions.map(s => {
-    const ws = s.workspace || {};
-    const updated = ws.updated_at ? new Date(ws.updated_at).toLocaleString() : '-';
+  var el = document.getElementById('all-sessions');
+  el.innerHTML = sessions.map(function(s) {
+    var ws = s.workspace || {};
+    var updated = ws.updated_at ? new Date(ws.updated_at).toLocaleString() : '-';
     return '<div class="session-row">' +
       '<span class="name">' + escapeHtml(ws.name || s.session_id) + '</span>' +
       '<span style="display:flex;align-items:center;gap:8px;">' +
@@ -161,8 +196,8 @@ function renderAllSessions(sessions) {
 
 async function refresh() {
   try {
-    const res = await fetch('/api/status');
-    const data = await res.json();
+    var res = await fetch('/api/status');
+    var data = await res.json();
     document.getElementById('active-count').textContent = data.system.active_session_count;
     document.getElementById('total-count').textContent = data.system.total_session_count;
     document.getElementById('updated-at').textContent = new Date(data.system.collected_at).toLocaleString();
@@ -182,7 +217,11 @@ setInterval(refresh, 5000);
 
 @app.route("/")
 def dashboard():
-    return render_template_string(DASHBOARD_HTML)
+    return Response(DASHBOARD_HTML, mimetype="text/html", headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    })
 
 
 @app.route("/api/status")
