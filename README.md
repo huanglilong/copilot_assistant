@@ -2,13 +2,16 @@
 
 Real-time status monitor for GitHub Copilot CLI sessions, accessible from any device on the local network via mDNS.
 
+![copilot status](copilot_status.png)
+
 ## Features
 
 - 📊 **Real-time Dashboard** - Dark-themed HTML dashboard with auto-refresh (5s)
-- 📡 **mDNS Broadcast** - Discoverable as `copilot.<username>.<hostname>.local:8585` on the local network
+- 📡 **mDNS Broadcast** - Discoverable as `copilot.<username>.<hostname>.local:8585` on the local network (supports macOS & Linux)
 - 🔌 **REST API** - JSON endpoints for programmatic access
 - 📋 **Session Tracking** - Active sessions, event counts, model info, todos
 - 🔍 **Multi-Session** - Monitors all active Copilot CLI sessions simultaneously
+- 🌐 **Dual-Stack** - IPv4 + IPv6 for broad device compatibility
 
 ## Quick Start
 
@@ -18,7 +21,9 @@ Real-time status monitor for GitHub Copilot CLI sessions, accessible from any de
 
 Then visit:
 - **Local**: http://localhost:8585
-- **Network**: http://copilot.\<username\>.\<hostname\>.local:8585 (auto-generated from your system)
+- **Network**: http://copilot.\<username\>.\<hostname\>.local:8585 (auto-generated, e.g. `http://copilot.llhuang.hll-mac-air.local:8585`)
+
+> **Note**: Some browsers may auto-attempt HTTPS on `.local` domains, causing 400 errors. If this happens, explicitly type `http://` in the URL.
 
 ## Manual Start
 
@@ -51,10 +56,10 @@ python3 -m copilot_status [options]
 ```
 copilot_status/
 ├── __init__.py        # Package init
-├── __main__.py        # Entry point (argparse, signal handling)
+├── __main__.py        # Entry point (argparse, signal handling, dual-stack)
 ├── collector.py       # Reads ~/.copilot/session-state/ data
 ├── server.py          # Flask HTTP server + HTML dashboard
-└── mdns.py            # Zeroconf mDNS broadcaster
+└── mdns.py            # Zeroconf mDNS broadcaster (macOS dns-sd + Linux avahi)
 ```
 
 ### Data Sources

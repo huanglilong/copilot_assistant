@@ -18,7 +18,7 @@ fi
 
 echo "🤖 Starting Copilot CLI Status Monitor..."
 echo "   Local:   http://localhost:8585"
-echo "   Network: http://copilot.local:8585"
+echo "   Network: http://copilot.$(whoami).$(hostname -s).local:8585"
 echo ""
 
 python3 -m copilot_status "$@"
