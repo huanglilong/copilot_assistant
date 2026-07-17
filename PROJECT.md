@@ -8,7 +8,7 @@ Monitor GitHub Copilot CLI session status in real-time from any device on the lo
 
 - **Collector** (`copilot_status/collector.py`): Reads Copilot CLI session data from `~/.copilot/session-state/` — workspace.yaml for metadata, events.jsonl for activity stream, session.db for todos, lock files for active session detection.
 - **HTTP Server** (`copilot_status/server.py`): Flask server on port 8585 serving a dark-themed HTML dashboard with 5s auto-refresh and JSON API endpoints.
-- **mDNS Broadcaster** (`copilot_status/mdns.py`): Registers `copilot.local` via Zeroconf so other devices can discover the service at `http://copilot.local:8585`.
+- **mDNS Broadcaster** (`copilot_status/mdns.py`): Registers `copilot.<username>.<hostname>.local` via Zeroconf. Uses `dns-sd` on macOS and `avahi-publish-service` on Linux for host .local resolution.
 - **Entry Point** (`copilot_status/__main__.py`): CLI with argparse, signal handling, and graceful shutdown.
 
 ## TODOs

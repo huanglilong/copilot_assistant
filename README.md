@@ -5,7 +5,7 @@ Real-time status monitor for GitHub Copilot CLI sessions, accessible from any de
 ## Features
 
 - 📊 **Real-time Dashboard** - Dark-themed HTML dashboard with auto-refresh (5s)
-- 📡 **mDNS Broadcast** - Discoverable as `copilot.local:8585` on the local network
+- 📡 **mDNS Broadcast** - Discoverable as `copilot.<username>.<hostname>.local:8585` on the local network
 - 🔌 **REST API** - JSON endpoints for programmatic access
 - 📋 **Session Tracking** - Active sessions, event counts, model info, todos
 - 🔍 **Multi-Session** - Monitors all active Copilot CLI sessions simultaneously
@@ -18,7 +18,7 @@ Real-time status monitor for GitHub Copilot CLI sessions, accessible from any de
 
 Then visit:
 - **Local**: http://localhost:8585
-- **Network**: http://copilot.local:8585
+- **Network**: http://copilot.\<username\>.\<hostname\>.local:8585 (auto-generated from your system)
 
 ## Manual Start
 
@@ -32,7 +32,7 @@ python3 -m copilot_status [options]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-p, --port` | 8585 | HTTP server port |
-| `-m, --mdns-host` | copilot | mDNS hostname (accessed as `<host>.local`) |
+| `-m, --mdns-host` | auto | mDNS hostname (default: `copilot.<user>.<hostname>`, accessed as `<host>.local`) |
 | `--no-mdns` | off | Disable mDNS broadcast |
 | `-v, --verbose` | off | Enable debug logging |
 

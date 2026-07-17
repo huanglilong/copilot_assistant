@@ -1,7 +1,8 @@
 """Copilot CLI Status Monitor - main entry point.
 
-Starts an HTTP server on port 8585 and broadcasts via mDNS as copilot.local.
-Other devices on the same network can visit http://copilot.local:8585 to view
+Starts an HTTP server on port 8585 and broadcasts via mDNS.
+Other devices on the same network can visit
+http://copilot.<username>.<hostname>.local:8585 to view
 the real-time status of GitHub Copilot CLI sessions.
 """
 
@@ -11,7 +12,7 @@ import logging
 import signal
 import sys
 
-from copilot_status.mdns import MDNSBroadcaster
+from copilot_status.mdns import MDNSBroadcaster, build_mdns_host
 from copilot_status.server import app
 
 logging.basicConfig(
@@ -22,13 +23,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 DEFAULT_PORT = 8585
-DEFAULT_HOST = "copilot"
 
 
 def main():
+    default_host = build_mdns_host()
+
     parser = argparse.ArgumentParser(description="Copilot CLI Status Monitor")
     parser.add_argument("-p", "--port", type=int, default=DEFAULT_PORT, help=f"HTTP server port (default: {DEFAULT_PORT})")
-    parser.add_argument("-m", "--mdns-host", type=str, default=DEFAULT_HOST, help=f"mDNS hostname (default: {DEFAULT_HOST}, accessible as {DEFAULT_HOST}.local)")
+    parser.add_argument("-m", "--mdns-host", type=str, default=default_host, help=f"mDNS hostname (default: {default_host}, accessible as <host>.local)")
     parser.add_argument("--no-mdns", action="store_true", help="Disable mDNS broadcast")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
