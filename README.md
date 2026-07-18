@@ -8,6 +8,7 @@ Real-time status monitor for GitHub Copilot CLI sessions, accessible from any de
 
 - 📊 **Real-time Dashboard** - Dark-themed HTML dashboard with auto-refresh (5s)
 - 📡 **mDNS Broadcast** - Discoverable as `copilot.<username>.<hostname>.local:8585` on the local network (supports macOS & Linux)
+- 🔧 **Linux mDNS Auto-Diagnosis** - Detects `mdns4_minimal` in nsswitch.conf and logs fix instructions for multi-label `.local` hostname resolution
 - 🔌 **REST API** - JSON endpoints for programmatic access
 - 📋 **Session Tracking** - Active sessions, event counts, model info, todos
 - 🔍 **Multi-Session** - Monitors all active Copilot CLI sessions simultaneously
@@ -26,6 +27,16 @@ Then visit:
 - **Network**: http://copilot.\<username\>.\<hostname\>.local:8585 (auto-generated, e.g. `http://copilot.llhuang.hll-mac-air.local:8585`)
 
 > **Note**: Some browsers may auto-attempt HTTPS on `.local` domains, causing 400 errors. If this happens, explicitly type `http://` in the URL.
+
+### Linux Troubleshooting
+
+If `copilot.<user>.<host>.local` is unreachable from the Linux machine itself, the system may be using `mdns4_minimal` in `/etc/nsswitch.conf`, which only supports single-label `.local` names (e.g. `host.local`) but not multi-label ones (e.g. `copilot.user.host.local`). Fix:
+
+```bash
+sudo sed -i 's/mdns4_minimal \[NOTFOUND=return\]/mdns4/' /etc/nsswitch.conf
+```
+
+The app will auto-detect this issue and log a warning with the fix command on startup.
 
 ## Manual Start
 

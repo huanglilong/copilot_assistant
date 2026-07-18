@@ -8,7 +8,7 @@ Monitor GitHub Copilot CLI session status in real-time from any device on the lo
 
 - **Collector** (`copilot_status/collector.py`): Reads Copilot CLI session data from `~/.copilot/session-state/` — workspace.yaml for metadata, events.jsonl for activity stream, session.db for todos, lock files for active session detection. Extracts last message, session status (working/waiting/error/idle), and event counts.
 - **HTTP Server** (`copilot_status/server.py`): Flask server on port 8585 (dual-stack IPv4+IPv6) serving a dark-themed HTML dashboard with 5s auto-refresh and JSON API endpoints. Shows session status badges, last messages, and event statistics.
-- **mDNS Broadcaster** (`copilot_status/mdns.py`): Registers `copilot.<username>.<hostname>.local` via Zeroconf. Uses `dns-sd` on macOS and `avahi-publish-service` on Linux for host .local resolution.
+- **mDNS Broadcaster** (`copilot_status/mdns.py`): Registers `copilot.<username>.<hostname>.local` via Zeroconf. Uses `dns-sd` on macOS and `avahi-publish-address`/`avahi-publish-service` on Linux for host .local resolution. Auto-detects `mdns4_minimal` misconfiguration and logs fix instructions.
 - **Entry Point** (`copilot_status/__main__.py`): CLI with argparse, signal handling, and graceful shutdown.
 
 ## Design Decisions
@@ -16,6 +16,11 @@ Monitor GitHub Copilot CLI session status in real-time from any device on the lo
 - **HTTP only** (no HTTPS): Browsers auto-attempt HTTPS on `.local` domains, but self-signed certs cause more issues than they solve. Use explicit `http://` prefix.
 - **No send message**: Copilot CLI does not expose a local API for injecting messages into running sessions. The official remote control mechanism (`--remote`) routes through GitHub's cloud, not locally. TTY writing is unreliable (permissions, Ink framework input handling). Removed send feature to avoid broken UX.
 - **Polling over WebSocket**: Simple 5s polling keeps the implementation lightweight. WebSocket/SSE can be added later for real-time push.
+
+## Linux mDNS Notes
+
+- **`avahi-publish-address`** (A record registration) is preferred for multi-label `.local` hostname resolution but returns "Not supported" on some distros. The app falls back to `avahi-publish-service` (DNS-SD only) and logs the IP for direct access.
+- **`mdns4_minimal`** in nsswitch.conf only resolves single-label `.local` names. Multi-label names like `copilot.user.host.local` require `mdns4`. The app auto-detects this and logs a warning with the fix command.
 
 ## TODOs
 
