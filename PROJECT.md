@@ -6,16 +6,20 @@ Monitor GitHub Copilot CLI session status in real-time from any device on the lo
 
 ## How
 
-- **Collector** (`copilot_status/collector.py`): Reads Copilot CLI session data from `~/.copilot/session-state/` — workspace.yaml for metadata, events.jsonl for activity stream, session.db for todos, lock files for active session detection. Extracts last message, session status (working/waiting/error/idle), and event counts.
-- **HTTP Server** (`copilot_status/server.py`): Flask server on port 8585 (dual-stack IPv4+IPv6) serving a dark-themed HTML dashboard with 5s auto-refresh and JSON API endpoints. Shows session status badges, last messages, and event statistics.
-- **mDNS Broadcaster** (`copilot_status/mdns.py`): Registers `copilot.<username>.<hostname>.local` via Zeroconf. Uses `dns-sd` on macOS and `avahi-publish-address`/`avahi-publish-service` on Linux for host .local resolution. Auto-detects `mdns4_minimal` misconfiguration and logs fix instructions.
+- **Collector** (`copilot_status/collector.py`): Reads Copilot CLI session data from `~/.copilot/session-state/` — workspace.yaml for metadata, events.jsonl for activity stream, session.db for todos, lock files for active session detection. Single-pass events.jsonl parsing extracts last message, session status (working/waiting/error/idle), and event counts. Validates PID from lock filenames.
+- **HTTP Server** (`copilot_status/server.py`): Flask server on port 8585 (dual-stack IPv4+IPv6) serving a dark-themed HTML dashboard with 5s auto-refresh and JSON API endpoints. Shows session status badges, last messages, and event statistics. Includes CORS headers, API error handling, and dashboard error indicators.
+- **mDNS Broadcaster** (`copilot_status/mdns.py`): Registers `copilot.<username>.<hostname>.local` via Zeroconf. Uses `dns-sd` on macOS and `avahi-publish-address`/`avahi-publish-service` on Linux for host .local resolution. Auto-detects `mdns4_minimal` misconfiguration and logs fix instructions. Socket resource safety with try/finally.
+- **Sender** (`copilot_status/sender.py`): TTY-based and `copilot -p` fallback message sender. Reserved for future `--remote` integration; not wired to the UI yet.
 - **Entry Point** (`copilot_status/__main__.py`): CLI with argparse, signal handling, and graceful shutdown.
 
 ## Design Decisions
 
 - **HTTP only** (no HTTPS): Browsers auto-attempt HTTPS on `.local` domains, but self-signed certs cause more issues than they solve. Use explicit `http://` prefix.
-- **No send message**: Copilot CLI does not expose a local API for injecting messages into running sessions. The official remote control mechanism (`--remote`) routes through GitHub's cloud, not locally. TTY writing is unreliable (permissions, Ink framework input handling). Removed send feature to avoid broken UX.
+- **No send message (yet)**: Copilot CLI does not expose a local API for injecting messages into running sessions. The official remote control mechanism (`--remote`) routes through GitHub's cloud, not locally. TTY writing is unreliable (permissions, Ink framework input handling). Sender module kept for future `--remote` integration.
 - **Polling over WebSocket**: Simple 5s polling keeps the implementation lightweight. WebSocket/SSE can be added later for real-time push.
+- **Single-pass events parsing**: `_read_events_summary()` handles both event counting and waiting-status detection in one file read, avoiding the old duplicated `_check_waiting()` scan.
+- **API error handling**: All API endpoints catch exceptions and return JSON error responses (500) instead of crashing. Dashboard shows a red error indicator on refresh failure.
+- **CORS enabled**: `Access-Control-Allow-Origin: *` on all responses so external frontends can consume the API.
 
 ## Linux mDNS Notes
 

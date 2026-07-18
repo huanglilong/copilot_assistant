@@ -9,7 +9,7 @@ Real-time status monitor for GitHub Copilot CLI sessions, accessible from any de
 - 📊 **Real-time Dashboard** - Dark-themed HTML dashboard with auto-refresh (5s)
 - 📡 **mDNS Broadcast** - Discoverable as `copilot.<username>.<hostname>.local:8585` on the local network (supports macOS & Linux)
 - 🔧 **Linux mDNS Auto-Diagnosis** - Detects `mdns4_minimal` in nsswitch.conf and logs fix instructions for multi-label `.local` hostname resolution
-- 🔌 **REST API** - JSON endpoints for programmatic access
+- 🔌 **REST API** - JSON endpoints with CORS support for programmatic access
 - 📋 **Session Tracking** - Active sessions, event counts, model info, todos
 - 🔍 **Multi-Session** - Monitors all active Copilot CLI sessions simultaneously
 - 🌐 **Dual-Stack** - IPv4 + IPv6 for broad device compatibility
@@ -71,8 +71,9 @@ copilot_status/
 ├── __init__.py        # Package init
 ├── __main__.py        # Entry point (argparse, signal handling, dual-stack)
 ├── collector.py       # Reads ~/.copilot/session-state/ data
-├── server.py          # Flask HTTP server + HTML dashboard
-└── mdns.py            # Zeroconf mDNS broadcaster (macOS dns-sd + Linux avahi)
+├── server.py          # Flask HTTP server + HTML dashboard (CORS, error handling)
+├── mdns.py            # Zeroconf mDNS broadcaster (macOS dns-sd + Linux avahi)
+└── sender.py          # TTY / copilot -p message sender (reserved for future use)
 ```
 
 ### Data Sources

@@ -113,27 +113,3 @@ def send_message(session_id: str, message: str, cwd: str = None, timeout: int = 
         return {"success": False, "output": out, "error": "timeout" + ("; " + err if err else "")}
     except Exception as e:
         return {"success": False, "output": "", "error": str(e)}
-
-
-def check_session_waiting(session_dir: str) -> bool:
-    events_path = Path(session_dir) / "events.jsonl"
-    if not events_path.exists():
-        return False
-    last_type = None
-    try:
-        with open(events_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    import json
-                    obj = json.loads(line)
-                    etype = obj.get("type", "")
-                    if etype in ("user.message", "assistant.message", "assistant.turn_end", "system.message"):
-                        last_type = etype
-                except Exception:
-                    continue
-    except Exception:
-        return False
-    return last_type in ("assistant.message", "assistant.turn_end", "system.message")

@@ -5,10 +5,11 @@ Uses dns-sd on macOS and avahi-publish on Linux for host .local resolution.
 
 import logging
 import os
-import platform
 import socket
 import subprocess
 import sys
+import time
+
 from zeroconf import Zeroconf, ServiceInfo
 
 logger = logging.getLogger(__name__)
@@ -51,9 +52,11 @@ class MDNSBroadcaster:
         """Get the local IP address for mDNS registration."""
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
+            try:
+                s.connect(("8.8.8.8", 80))
+                ip = s.getsockname()[0]
+            finally:
+                s.close()
             return ip
         except Exception:
             return "127.0.0.1"
@@ -137,7 +140,6 @@ class MDNSBroadcaster:
                 stderr=subprocess.PIPE,
             )
             # Give it a moment to register, then verify
-            import time
             time.sleep(0.5)
             if proc_addr.poll() is None:
                 logger.info("Linux avahi address registered: %s.local -> %s", self.host, local_ip)

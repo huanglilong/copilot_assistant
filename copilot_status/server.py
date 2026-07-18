@@ -1,7 +1,11 @@
 """HTTP status server with HTML dashboard for Copilot CLI status."""
 
+import logging
+
 from flask import Flask, jsonify, Response
 from .collector import get_active_sessions, get_all_sessions, get_system_info
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -92,7 +96,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <div id="all-sessions"></div>
 </div>
 
-<div class="refresh-info">Auto-refresh every 5 seconds &bull; <a href="/api/status" style="color:var(--accent);">JSON API</a></div>
+<div class="refresh-info">Auto-refresh every 5 seconds &bull; <a href="/api/status" style="color:var(--accent);">JSON API</a> <span id="refresh-error" style="color:var(--red);"></span></div>
 
 <script>
 function escapeHtml(text) {
@@ -197,14 +201,18 @@ function renderAllSessions(sessions) {
 async function refresh() {
   try {
     var res = await fetch('/api/status');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     var data = await res.json();
+    if (data.error) throw new Error(data.error);
     document.getElementById('active-count').textContent = data.system.active_session_count;
     document.getElementById('total-count').textContent = data.system.total_session_count;
     document.getElementById('updated-at').textContent = new Date(data.system.collected_at).toLocaleString();
     renderActiveSessions(data.active_sessions || []);
     renderAllSessions(data.all_sessions || []);
+    document.getElementById('refresh-error').textContent = '';
   } catch (e) {
     console.error('Refresh failed:', e);
+    document.getElementById('refresh-error').textContent = '⚠ Refresh failed: ' + e.message;
   }
 }
 
@@ -213,6 +221,12 @@ setInterval(refresh, 5000);
 </script>
 </body>
 </html>"""
+
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 @app.route("/")
@@ -226,21 +240,33 @@ def dashboard():
 
 @app.route("/api/status")
 def api_status():
-    return jsonify({
-        "system": get_system_info(),
-        "active_sessions": get_active_sessions(),
-        "all_sessions": get_all_sessions(),
-    })
+    try:
+        return jsonify({
+            "system": get_system_info(),
+            "active_sessions": get_active_sessions(),
+            "all_sessions": get_all_sessions(),
+        })
+    except Exception as e:
+        logger.error("API /api/status error: %s", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/sessions/active")
 def api_active_sessions():
-    return jsonify(get_active_sessions())
+    try:
+        return jsonify(get_active_sessions())
+    except Exception as e:
+        logger.error("API /api/sessions/active error: %s", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/sessions")
 def api_all_sessions():
-    return jsonify(get_all_sessions())
+    try:
+        return jsonify(get_all_sessions())
+    except Exception as e:
+        logger.error("API /api/sessions error: %s", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/health")

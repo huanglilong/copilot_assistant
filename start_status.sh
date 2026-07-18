@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start Copilot CLI Status Monitor
-# Access from other devices: http://copilot.local:8585
+# Access from other devices: http://copilot.<username>.<hostname>.local:8585
 # Access locally: http://localhost:8585
 
 set -e

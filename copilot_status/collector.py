@@ -17,20 +17,23 @@ def get_active_sessions():
     for lock_file in glob.glob(lock_pattern):
         session_dir = Path(lock_file).parent
         session_id = session_dir.name
-        pid = Path(lock_file).stem.replace("inuse.", "")
+        pid_str = Path(lock_file).stem.replace("inuse.", "")
+        try:
+            pid = int(pid_str)
+        except ValueError:
+            continue
 
         workspace = _read_workspace(session_dir)
         events_summary = _read_events_summary(session_dir)
         todos = _read_todos(session_dir)
-        waiting = _check_waiting(session_dir)
 
         sessions.append({
             "session_id": session_id,
-            "pid": int(pid),
+            "pid": pid,
             "workspace": workspace,
             "events_summary": events_summary,
             "todos": todos,
-            "waiting": waiting,
+            "waiting": events_summary.get("status") == "waiting",
             "session_dir": str(session_dir),
         })
 
@@ -83,7 +86,11 @@ def _read_workspace(session_dir):
 
 
 def _read_events_summary(session_dir):
-    """Parse events.jsonl to extract key events summary."""
+    """Parse events.jsonl to extract key events summary.
+
+    Also determines if the session is waiting for user input by checking
+    the last relevant event type, replacing the old _check_waiting().
+    """
     events_path = session_dir / "events.jsonl"
     if not events_path.exists():
         return {}
@@ -103,6 +110,9 @@ def _read_events_summary(session_dir):
         "last_tool": None,
         "status": "idle",
     }
+
+    # Track last event type for waiting detection
+    last_relevant_type = None
 
     try:
         with open(events_path, "r", encoding="utf-8") as f:
@@ -157,10 +167,18 @@ def _read_events_summary(session_dir):
 
                     if ts:
                         summary["last_activity"] = ts
+
+                    # Track for waiting detection
+                    if etype in ("user.message", "assistant.message", "assistant.turn_end", "system.message"):
+                        last_relevant_type = etype
                 except json.JSONDecodeError:
                     continue
     except Exception:
         pass
+
+    # If the last relevant event indicates the assistant finished, mark as waiting
+    if last_relevant_type in ("assistant.message", "assistant.turn_end", "system.message"):
+        summary["status"] = "waiting"
 
     return summary
 
@@ -187,32 +205,6 @@ def _read_todos(session_dir):
     except Exception:
         pass
     return todos
-
-
-def _check_waiting(session_dir):
-    """Check if session is waiting for user input."""
-    events_path = session_dir / "events.jsonl"
-    if not events_path.exists():
-        return False
-
-    last_type = None
-    try:
-        with open(events_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                    etype = obj.get("type", "")
-                    if etype in ("user.message", "assistant.message", "assistant.turn_end", "system.message"):
-                        last_type = etype
-                except Exception:
-                    continue
-    except Exception:
-        return False
-
-    return last_type in ("assistant.message", "assistant.turn_end", "system.message")
 
 
 def get_system_info():
